@@ -1,0 +1,16 @@
+[general]
+log_dir = "logs"               # Relative paths resolve from config file's directory
+log_level = "info"
+
+[sync]
+scan_dirs = []                 # e.g. ["C:/Projects"]
+claude_md_store_dir = ""       # e.g. "C:/Projects/claude-md"
+exclude_projects = ["ywatchy"]
+
+[skills]
+scan_dirs = []                 # e.g. ["C:/Projects"]
+target_dir = ""                # Empty = ~/.claude/skills/
+skill_patterns = ["skills/*/SKILL.md", ".claude/skills/*/SKILL.md"]
+
+[watcher]
+debounce_ms = 500

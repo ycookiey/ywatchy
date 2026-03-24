@@ -12,3 +12,5 @@ nul
 
 # Logs
 *.log
+/target/
+logs/

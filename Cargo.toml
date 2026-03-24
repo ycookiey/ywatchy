@@ -1,0 +1,15 @@
+[package]
+name = "ywatchy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+notify = "8"
+notify-debouncer-mini = "0.7"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+dirs = "6"
+ctrlc = "3"
