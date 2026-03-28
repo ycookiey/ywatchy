@@ -1,10 +1,10 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs, io,
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub general: GeneralConfig,
     pub sync: SyncConfig,
@@ -12,13 +12,13 @@ pub struct Config {
     pub watcher: WatcherConfig,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
     pub log_dir: String,
     pub log_level: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncConfig {
     pub scan_dirs: Vec<String>,
     pub claude_md_store_dir: String,
@@ -26,7 +26,7 @@ pub struct SyncConfig {
     pub exclude_projects: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillsConfig {
     pub scan_dirs: Vec<String>,
     #[serde(default)]
@@ -34,12 +34,50 @@ pub struct SkillsConfig {
     pub skill_patterns: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WatcherConfig {
     pub debounce_ms: u64,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            general: GeneralConfig {
+                log_dir: String::from("logs"),
+                log_level: String::from("info"),
+            },
+            sync: SyncConfig {
+                scan_dirs: Vec::new(),
+                claude_md_store_dir: String::from(""),
+                exclude_projects: vec![String::from("ywatchy")],
+            },
+            skills: SkillsConfig {
+                scan_dirs: Vec::new(),
+                target_dir: String::from(""),
+                skill_patterns: vec![
+                    String::from("skills/*/SKILL.md"),
+                    String::from(".claude/skills/*/SKILL.md"),
+                ],
+            },
+            watcher: WatcherConfig {
+                debounce_ms: 500,
+            },
+        }
+    }
+}
+
 impl Config {
+    pub fn write_default(path: &Path) -> io::Result<()> {
+        let default = Self::default();
+        let content = toml::to_string_pretty(&default)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, content)?;
+        Ok(())
+    }
+
     pub fn load(config_path: &Path) -> io::Result<Self> {
         let content = fs::read_to_string(config_path).map_err(|err| {
             io::Error::new(

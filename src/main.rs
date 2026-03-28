@@ -31,9 +31,11 @@ fn find_config() -> PathBuf {
 
     let path = default_config_path();
     if !path.is_file() {
-        eprintln!("config not found: {}", path.display());
-        eprintln!("create your config at this path, or use --config <path>");
-        process::exit(1);
+        if let Err(err) = Config::write_default(&path) {
+            eprintln!("failed to create default config at {}: {}", path.display(), err);
+            process::exit(1);
+        }
+        eprintln!("created default config at: {}", path.display());
     }
     path
 }
