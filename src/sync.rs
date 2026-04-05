@@ -241,12 +241,20 @@ pub fn resolve_event<'a>(
 }
 
 fn copy_with_tracking(source: &Path, dest: &Path, recent_writes: &mut RecentWrites) -> io::Result<()> {
-    if let Some(parent) = dest.parent() {
+    // Resolve symlinks so fs::copy writes to the link target instead of replacing the link
+    let resolved_dest = if dest.is_symlink() {
+        fs::canonicalize(dest)?
+    } else {
+        dest.to_path_buf()
+    };
+
+    if let Some(parent) = resolved_dest.parent() {
         fs::create_dir_all(parent)?;
     }
 
     recent_writes.mark(dest);
-    fs::copy(source, dest).map(|_| ())
+    recent_writes.mark(&resolved_dest);
+    fs::copy(source, &resolved_dest).map(|_| ())
 }
 
 fn modified_or_epoch(path: &Path) -> SystemTime {
