@@ -68,14 +68,46 @@ impl Default for Config {
 
 impl Config {
     pub fn write_default(path: &Path) -> io::Result<()> {
-        let default = Self::default();
-        let content = toml::to_string_pretty(&default)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let content = r#"[general]
+# ログ出力先 (設定ファイルからの相対パス or 絶対パス)
+log_dir = "logs"
+# ログレベル: trace, debug, info, warn, error
+log_level = "info"
+
+[sync]
+# CLAUDE.md を検索するプロジェクト親ディレクトリ
+# 例: ["C:/Users/you/Projects", "D:/work"]
+scan_dirs = []
+# CLAUDE.md バックアップ先 (空なら設定ファイルと同階層の store/)
+claude_md_store_dir = ""
+# 同期対象から除外するプロジェクト名
+exclude_projects = ["ywatchy"]
+
+[skills]
+# スキルを検索するプロジェクト親ディレクトリ (通常 sync.scan_dirs と同じ)
+scan_dirs = []
+# スキルのシンボリックリンク先 (空なら ~/.claude/skills/)
+target_dir = ""
+# スキル検出パターン (* がスキル名に展開される)
+skill_patterns = [
+    "skills/*/SKILL.md",
+    ".claude/skills/*/SKILL.md",
+]
+
+[watcher]
+# ファイル変更検出のデバウンス時間 (ms)
+debounce_ms = 500
+"#;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(path, content)?;
         Ok(())
+    }
+
+    /// scan_dirs が未設定かどうか
+    pub fn has_scan_dirs(&self) -> bool {
+        !self.sync.scan_dirs.is_empty() || !self.skills.scan_dirs.is_empty()
     }
 
     pub fn load(config_path: &Path) -> io::Result<Self> {

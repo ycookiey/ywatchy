@@ -36,7 +36,9 @@ fn find_config() -> PathBuf {
             eprintln!("failed to create default config at {}: {}", path.display(), err);
             process::exit(1);
         }
-        eprintln!("created default config at: {}", path.display());
+        eprintln!("設定ファイルを生成しました: {}", path.display());
+        eprintln!("scan_dirs を編集してから再度実行してください。");
+        process::exit(0);
     }
     path
 }
@@ -88,6 +90,22 @@ fn main() {
     };
 
     info!(config = %config_path.display(), "ywatchy starting");
+
+    if !config.has_scan_dirs() {
+        eprintln!("scan_dirs が未設定です。");
+        eprintln!();
+        eprintln!("設定ファイルを編集してください:");
+        eprintln!("  {}", config_path.display());
+        eprintln!();
+        eprintln!("最低限、scan_dirs にプロジェクト親ディレクトリを指定:");
+        eprintln!();
+        eprintln!("  [sync]");
+        eprintln!("  scan_dirs = [\"C:/path/to/your/projects\"]");
+        eprintln!();
+        eprintln!("  [skills]");
+        eprintln!("  scan_dirs = [\"C:/path/to/your/projects\"]");
+        process::exit(1);
+    }
 
     if let Err(err) = ctrlc::set_handler(|| {
         info!("received Ctrl+C, exiting");
