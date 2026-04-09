@@ -57,8 +57,10 @@ pub fn run(
     };
 
     initial_sync(&state.projects, &mut state.recent_writes);
-    initial_skill_sync(&state.skills);
-    cleanup_stale_symlinks(&skills_target_dir, &state.skills, &skills_scan_dirs);
+    let mut skill_items = initial_skill_sync(&state.skills);
+    let stale_items = cleanup_stale_symlinks(&skills_target_dir, &state.skills, &skills_scan_dirs);
+    skill_items.extend(stale_items);
+    crate::print::print_section("skills", skill_items.len(), &skill_items);
 
     let (tx, rx) = mpsc::channel();
     let debounce = Duration::from_millis(state.config.watcher.debounce_ms);
@@ -83,6 +85,7 @@ pub fn run(
         root = %state.ywatchy_root.display(),
         "watcher started"
     );
+    crate::print::print_watching();
 
     loop {
         match rx.recv() {
@@ -192,6 +195,10 @@ fn handle_debounced_events<W: Watcher + ?Sized>(
 
             if let Some((project, direction)) = resolve_event(&path, &state.projects) {
                 let project = project.clone();
+                let dir_label = match direction {
+                    SyncDirection::SourceToStore => "source -> store",
+                    SyncDirection::StoreToSource => "store -> source",
+                };
                 let result = match direction {
                     SyncDirection::SourceToStore => {
                         sync_source_to_store(&project, &mut state.recent_writes)
@@ -200,13 +207,17 @@ fn handle_debounced_events<W: Watcher + ?Sized>(
                         sync_store_to_source(&project, &mut state.recent_writes)
                     }
                 };
-                if let Err(err) = result {
-                    error!(
-                        path = %path.display(),
-                        project = %project.project_name,
-                        error = %err,
-                        "failed to sync CLAUDE.md after event"
-                    );
+                match result {
+                    Ok(()) => crate::print::print_event("sync", &project.project_name, dir_label),
+                    Err(err) => {
+                        error!(
+                            path = %path.display(),
+                            project = %project.project_name,
+                            error = %err,
+                            "failed to sync CLAUDE.md after event"
+                        );
+                        crate::print::print_event_error("sync", &project.project_name, &err.to_string());
+                    }
                 }
             }
             continue;
@@ -220,21 +231,32 @@ fn handle_debounced_events<W: Watcher + ?Sized>(
                 skills_target_dir,
             ) {
                 if path.exists() {
-                    if let Err(err) = ensure_symlink(&skill) {
-                        error!(
-                            path = %path.display(),
-                            skill = %skill.name,
-                            error = %err,
-                            "failed to ensure skill symlink after SKILL.md event"
-                        );
+                    match ensure_symlink(&skill) {
+                        Ok(true) => crate::print::print_event("skill", &skill.name, "linked"),
+                        Ok(false) => {}
+                        Err(err) => {
+                            error!(
+                                path = %path.display(),
+                                skill = %skill.name,
+                                error = %err,
+                                "failed to ensure skill symlink after SKILL.md event"
+                            );
+                            crate::print::print_event_error("skill", &skill.name, &err.to_string());
+                        }
                     }
-                } else if let Err(err) = remove_symlink(&skill) {
-                    error!(
-                        path = %path.display(),
-                        skill = %skill.name,
-                        error = %err,
-                        "failed to remove skill symlink after SKILL.md deletion"
-                    );
+                } else {
+                    match remove_symlink(&skill) {
+                        Ok(()) => crate::print::print_event("skill", &skill.name, "removed"),
+                        Err(err) => {
+                            error!(
+                                path = %path.display(),
+                                skill = %skill.name,
+                                error = %err,
+                                "failed to remove skill symlink after SKILL.md deletion"
+                            );
+                            crate::print::print_event_error("skill", &skill.name, &err.to_string());
+                        }
+                    }
                 }
 
                 refresh_skills_snapshot(state, skills_scan_dirs, skills_target_dir);
@@ -317,19 +339,24 @@ fn maybe_add_new_project<W: Watcher + ?Sized>(
     }
     watch_project_skill_dirs(watcher, path);
 
-    if let Err(err) = sync_source_to_store(&project, &mut state.recent_writes) {
-        error!(
-            project = %project.project_name,
-            error = %err,
-            "failed to sync newly discovered project"
-        );
-    } else {
-        info!(
-            project = %project.project_name,
-            source = %project.source_path.display(),
-            store = %project.store_path.display(),
-            "added new project to watch list"
-        );
+    match sync_source_to_store(&project, &mut state.recent_writes) {
+        Ok(()) => {
+            info!(
+                project = %project.project_name,
+                source = %project.source_path.display(),
+                store = %project.store_path.display(),
+                "added new project to watch list"
+            );
+            crate::print::print_event("watch", &project.project_name, "discovered");
+        }
+        Err(err) => {
+            error!(
+                project = %project.project_name,
+                error = %err,
+                "failed to sync newly discovered project"
+            );
+            crate::print::print_event_error("watch", &project.project_name, &err.to_string());
+        }
     }
 
     refresh_skills_snapshot(state, skills_scan_dirs, skills_target_dir);
@@ -341,8 +368,8 @@ fn refresh_skills_snapshot(state: &mut WatcherState, skills_scan_dirs: &[PathBuf
         &state.config.skills.skill_patterns,
         skills_target_dir,
     );
-    initial_skill_sync(&state.skills);
-    cleanup_stale_symlinks(skills_target_dir, &state.skills, skills_scan_dirs);
+    let _ = initial_skill_sync(&state.skills);
+    let _ = cleanup_stale_symlinks(skills_target_dir, &state.skills, skills_scan_dirs);
 }
 
 fn file_name_eq(path: &Path, expected: &str) -> bool {

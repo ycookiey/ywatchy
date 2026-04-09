@@ -183,34 +183,53 @@ pub fn sync_store_to_source(
 }
 
 pub fn initial_sync(projects: &[ProjectClaudeMd], recent_writes: &mut RecentWrites) {
+    use crate::print::{self, Status};
+
+    let mut items: Vec<(String, Status)> = Vec::new();
+
     for project in projects {
         let source_exists = project.source_path.is_file();
         let store_exists = project.store_path.is_file();
 
         match (source_exists, store_exists) {
             (true, true) => {
+                let source_content = fs::read(&project.source_path).ok();
+                let store_content = fs::read(&project.store_path).ok();
+                if source_content == store_content {
+                    items.push((project.project_name.clone(), Status::Skip));
+                    continue;
+                }
+
                 let source_modified = modified_or_epoch(&project.source_path);
                 let store_modified = modified_or_epoch(&project.store_path);
-                let result = if source_modified >= store_modified {
-                    sync_source_to_store(project, recent_writes)
+                let (result, direction) = if source_modified >= store_modified {
+                    (sync_source_to_store(project, recent_writes), "source -> store")
                 } else {
-                    sync_store_to_source(project, recent_writes)
+                    (sync_store_to_source(project, recent_writes), "store -> source")
                 };
-                if let Err(err) = result {
-                    error!(
-                        project = %project.project_name,
-                        error = %err,
-                        "initial sync failed for project"
-                    );
+                match result {
+                    Ok(()) => items.push((project.project_name.clone(), Status::Synced(direction.to_string()))),
+                    Err(err) => {
+                        error!(
+                            project = %project.project_name,
+                            error = %err,
+                            "initial sync failed for project"
+                        );
+                        items.push((project.project_name.clone(), Status::Error(err.to_string())));
+                    }
                 }
             }
             (true, false) => {
-                if let Err(err) = sync_source_to_store(project, recent_writes) {
-                    error!(
-                        project = %project.project_name,
-                        error = %err,
-                        "initial sync failed for source-only project"
-                    );
+                match sync_source_to_store(project, recent_writes) {
+                    Ok(()) => items.push((project.project_name.clone(), Status::New("source -> store".to_string()))),
+                    Err(err) => {
+                        error!(
+                            project = %project.project_name,
+                            error = %err,
+                            "initial sync failed for source-only project"
+                        );
+                        items.push((project.project_name.clone(), Status::Error(err.to_string())));
+                    }
                 }
             }
             (false, true) => {
@@ -219,10 +238,13 @@ pub fn initial_sync(projects: &[ProjectClaudeMd], recent_writes: &mut RecentWrit
                     store = %project.store_path.display(),
                     "store CLAUDE.md exists without source; leaving untouched"
                 );
+                items.push((project.project_name.clone(), Status::Orphan));
             }
             (false, false) => {}
         }
     }
+
+    print::print_section("sync", items.len(), &items);
 }
 
 pub fn resolve_event<'a>(

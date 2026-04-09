@@ -115,7 +115,8 @@ pub fn find_skills_in_project(project_dir: &Path, patterns: &[String]) -> Vec<(S
     skills
 }
 
-pub fn ensure_symlink(skill: &SkillInfo) -> io::Result<()> {
+/// Returns `Ok(true)` if a new symlink was created, `Ok(false)` if already linked.
+pub fn ensure_symlink(skill: &SkillInfo) -> io::Result<bool> {
     if !skill.skill_dir.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -129,7 +130,7 @@ pub fn ensure_symlink(skill: &SkillInfo) -> io::Result<()> {
 
     if skill.symlink_path.exists() {
         if same_destination(&skill.symlink_path, &skill.skill_dir) {
-            return Ok(());
+            return Ok(false);
         }
 
         if is_symlink_like(&skill.symlink_path)? {
@@ -152,7 +153,7 @@ pub fn ensure_symlink(skill: &SkillInfo) -> io::Result<()> {
         link = %skill.symlink_path.display(),
         "created skill symlink"
     );
-    Ok(())
+    Ok(true)
 }
 
 pub fn remove_symlink(skill: &SkillInfo) -> io::Result<()> {
@@ -177,21 +178,34 @@ pub fn remove_symlink(skill: &SkillInfo) -> io::Result<()> {
     Ok(())
 }
 
-pub fn initial_skill_sync(skills: &[SkillInfo]) {
+pub fn initial_skill_sync(skills: &[SkillInfo]) -> Vec<(String, crate::print::Status)> {
+    use crate::print::Status;
+
+    let mut items: Vec<(String, Status)> = Vec::new();
+
     for skill in skills {
-        if let Err(err) = ensure_symlink(skill) {
-            error!(
-                skill = %skill.name,
-                error = %err,
-                "failed to ensure skill symlink"
-            );
+        match ensure_symlink(skill) {
+            Ok(true) => items.push((skill.name.clone(), Status::Linked)),
+            Ok(false) => items.push((skill.name.clone(), Status::Skip)),
+            Err(err) => {
+                error!(
+                    skill = %skill.name,
+                    error = %err,
+                    "failed to ensure skill symlink"
+                );
+                items.push((skill.name.clone(), Status::Error(err.to_string())));
+            }
         }
     }
+
+    items
 }
 
-pub fn cleanup_stale_symlinks(target_dir: &Path, active_skills: &[SkillInfo], scan_dirs: &[PathBuf]) {
+pub fn cleanup_stale_symlinks(target_dir: &Path, active_skills: &[SkillInfo], scan_dirs: &[PathBuf]) -> Vec<(String, crate::print::Status)> {
+    let mut results: Vec<(String, crate::print::Status)> = Vec::new();
+
     if !target_dir.is_dir() {
-        return;
+        return results;
     }
 
     let active: HashSet<String> = active_skills
@@ -212,7 +226,7 @@ pub fn cleanup_stale_symlinks(target_dir: &Path, active_skills: &[SkillInfo], sc
                 error = %err,
                 "failed to read skill target directory for cleanup"
             );
-            return;
+            return results;
         }
     };
 
@@ -237,17 +251,22 @@ pub fn cleanup_stale_symlinks(target_dir: &Path, active_skills: &[SkillInfo], sc
             .unwrap_or(false);
 
         if points_inside_scan_dirs {
+            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             if let Err(err) = remove_link_path(&path) {
                 error!(
                     path = %path.display(),
                     error = %err,
                     "failed to remove stale skill symlink"
                 );
+                results.push((name, crate::print::Status::Error(format!("stale removal: {}", err))));
             } else {
                 info!(path = %path.display(), "removed stale skill symlink");
+                results.push((name, crate::print::Status::Removed));
             }
         }
     }
+
+    results
 }
 
 pub fn resolve_skill_event(
