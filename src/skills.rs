@@ -18,7 +18,9 @@ pub fn discover_skills(
     scan_dirs: &[PathBuf],
     patterns: &[String],
     target_dir: &Path,
+    exclude: &[String],
 ) -> Vec<SkillInfo> {
+    let excluded: HashSet<String> = exclude.iter().map(|name| name.to_ascii_lowercase()).collect();
     let mut all_skills = Vec::new();
     let mut seen_names = HashSet::new();
 
@@ -48,6 +50,11 @@ pub fn discover_skills(
                 continue;
             };
             if !file_type.is_dir() {
+                continue;
+            }
+
+            let project_name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            if excluded.contains(&project_name) {
                 continue;
             }
 
@@ -274,6 +281,7 @@ pub fn resolve_skill_event(
     scan_dirs: &[PathBuf],
     patterns: &[String],
     target_dir: &Path,
+    exclude: &[String],
 ) -> Option<SkillInfo> {
     if !file_name_eq(path, "SKILL.md") {
         return None;
@@ -295,6 +303,9 @@ pub fn resolve_skill_event(
         }
 
         let project_name = &rel_scan_segments[0];
+        if exclude.iter().any(|excluded| excluded.eq_ignore_ascii_case(project_name)) {
+            continue;
+        }
         let project_dir = scan_dir.join(project_name);
         let rel_to_project = &rel_scan_segments[1..];
 
@@ -488,4 +499,40 @@ impl PatternSpec {
 
 fn strip_extended_prefix(s: &str) -> String {
     s.strip_prefix(r"\\?\").unwrap_or(s).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_skill(project_dir: &Path, name: &str) -> PathBuf {
+        let skill_dir = project_dir.join(".claude").join("skills").join(name);
+        fs::create_dir_all(&skill_dir).unwrap();
+        let skill_file = skill_dir.join("SKILL.md");
+        fs::write(&skill_file, "---\nname: x\n---\n").unwrap();
+        skill_file
+    }
+
+    #[test]
+    fn excluded_project_skills_are_not_discovered_or_resolved() {
+        let root = std::env::temp_dir().join(format!("ywatchy-skills-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let scan_dir = root.join("projects");
+        let target_dir = root.join("target");
+        make_skill(&scan_dir.join("kept"), "kept-skill");
+        let excluded_file = make_skill(&scan_dir.join("Excluded"), "excluded-skill");
+
+        let patterns = vec![String::from(".claude/skills/*/SKILL.md")];
+        let exclude = vec![String::from("excluded")];
+        let scan_dirs = vec![scan_dir.clone()];
+
+        let skills = discover_skills(&scan_dirs, &patterns, &target_dir, &exclude);
+        let names = skills.iter().map(|skill| skill.name.as_str()).collect::<Vec<_>>();
+        assert_eq!(names, vec!["kept-skill"]);
+
+        assert!(resolve_skill_event(&excluded_file, &scan_dirs, &patterns, &target_dir, &exclude).is_none());
+        assert!(resolve_skill_event(&excluded_file, &scan_dirs, &patterns, &target_dir, &[]).is_some());
+
+        let _ = fs::remove_dir_all(&root);
+    }
 }

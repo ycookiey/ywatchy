@@ -32,6 +32,8 @@ pub struct SkillsConfig {
     #[serde(default)]
     pub target_dir: String,
     pub skill_patterns: Vec<String>,
+    #[serde(default)]
+    pub exclude_projects: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +60,7 @@ impl Default for Config {
                     String::from("skills/*/SKILL.md"),
                     String::from(".claude/skills/*/SKILL.md"),
                 ],
+                exclude_projects: Vec::new(),
             },
             watcher: WatcherConfig {
                 debounce_ms: 500,
@@ -93,6 +96,8 @@ skill_patterns = [
     "skills/*/SKILL.md",
     ".claude/skills/*/SKILL.md",
 ]
+# スキル検出から除外するプロジェクト名 (既存の symlink は起動時に削除される)
+exclude_projects = []
 
 [watcher]
 # ファイル変更検出のデバウンス時間 (ms)

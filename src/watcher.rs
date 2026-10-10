@@ -46,6 +46,7 @@ pub fn run(
         &skills_scan_dirs,
         &config.skills.skill_patterns,
         &skills_target_dir,
+        &config.skills.exclude_projects,
     );
 
     let mut state = WatcherState {
@@ -229,6 +230,7 @@ fn handle_debounced_events<W: Watcher + ?Sized>(
                 skills_scan_dirs,
                 &state.config.skills.skill_patterns,
                 skills_target_dir,
+                &state.config.skills.exclude_projects,
             ) {
                 if path.exists() {
                     match ensure_symlink(&skill) {
@@ -367,6 +369,7 @@ fn refresh_skills_snapshot(state: &mut WatcherState, skills_scan_dirs: &[PathBuf
         skills_scan_dirs,
         &state.config.skills.skill_patterns,
         skills_target_dir,
+        &state.config.skills.exclude_projects,
     );
     let _ = initial_skill_sync(&state.skills);
     let _ = cleanup_stale_symlinks(skills_target_dir, &state.skills, skills_scan_dirs);
