@@ -18,16 +18,43 @@ fn default_config_path() -> PathBuf {
         .join("ywatchy.toml")
 }
 
-fn find_config() -> PathBuf {
-    let args: Vec<String> = env::args().collect();
+const USAGE: &str = "\
+usage: ywatchy [--config <path>]
 
-    // --config <path> で上書き可能
-    if let Some(pos) = args.iter().position(|a| a == "--config") {
-        if let Some(path) = args.get(pos + 1) {
-            return PathBuf::from(path);
+  --config <path>  設定ファイルを指定 (既定: <config_dir>/ywatchy/ywatchy.toml)
+  -V, --version    バージョンを表示して終了
+  -h, --help       この説明を表示して終了
+
+引数なしで起動すると常駐し、skill の symlink と CLAUDE.md の sync を行う。";
+
+#[derive(Debug, PartialEq, Eq)]
+enum CliAction {
+    Run { config: Option<PathBuf> },
+    Version,
+    Help,
+}
+
+/// 引数を解釈する。知らない引数はエラーにし、常駐を始めない
+fn parse_args<I: IntoIterator<Item = String>>(args: I) -> Result<CliAction, String> {
+    let mut config = None;
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "-V" | "--version" => return Ok(CliAction::Version),
+            "-h" | "--help" => return Ok(CliAction::Help),
+            "--config" => match iter.next() {
+                Some(path) => config = Some(PathBuf::from(path)),
+                None => return Err(String::from("--config requires a path argument")),
+            },
+            other => return Err(format!("unknown argument: {}", other)),
         }
-        eprintln!("--config requires a path argument");
-        process::exit(1);
+    }
+    Ok(CliAction::Run { config })
+}
+
+fn find_config(configured: Option<PathBuf>) -> PathBuf {
+    if let Some(path) = configured {
+        return path;
     }
 
     let path = default_config_path();
@@ -67,7 +94,24 @@ fn setup_logging(config: &Config, ywatchy_root: &Path) -> io::Result<WorkerGuard
 }
 
 fn main() {
-    let config_path = find_config();
+    let configured = match parse_args(env::args().skip(1)) {
+        Ok(CliAction::Version) => {
+            println!("ywatchy {}", env!("CARGO_PKG_VERSION"));
+            return;
+        }
+        Ok(CliAction::Help) => {
+            println!("{}", USAGE);
+            return;
+        }
+        Ok(CliAction::Run { config }) => config,
+        Err(err) => {
+            eprintln!("{}", err);
+            eprintln!();
+            eprintln!("{}", USAGE);
+            process::exit(2);
+        }
+    };
+    let config_path = find_config(configured);
     let config_dir = config_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
@@ -119,5 +163,42 @@ fn main() {
         error!(error = %err, "watcher exited with error");
         eprintln!("watcher exited with error: {}", err);
         process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<CliAction, String> {
+        parse_args(args.iter().map(|a| a.to_string()))
+    }
+
+    #[test]
+    fn no_args_runs_with_default_config() {
+        assert_eq!(parse(&[]), Ok(CliAction::Run { config: None }));
+    }
+
+    #[test]
+    fn config_arg_sets_path() {
+        assert_eq!(
+            parse(&["--config", "a.toml"]),
+            Ok(CliAction::Run { config: Some(PathBuf::from("a.toml")) })
+        );
+    }
+
+    #[test]
+    fn version_and_help_do_not_run() {
+        assert_eq!(parse(&["--version"]), Ok(CliAction::Version));
+        assert_eq!(parse(&["-V"]), Ok(CliAction::Version));
+        assert_eq!(parse(&["--help"]), Ok(CliAction::Help));
+        assert_eq!(parse(&["-h"]), Ok(CliAction::Help));
+    }
+
+    #[test]
+    fn unknown_or_incomplete_args_are_errors() {
+        assert!(parse(&["--verbose"]).is_err());
+        assert!(parse(&["status"]).is_err());
+        assert!(parse(&["--config"]).is_err());
     }
 }
