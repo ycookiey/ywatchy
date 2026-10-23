@@ -26,8 +26,8 @@ scoop install yscoopy/ywatchy
 
 `scan_dirs`に指定したフォルダの直下の各フォルダを、1つのプロジェクトとみなす。
 
-- skill: `<project>/skills/<name>/`と`<project>/.claude/skills/<name>/`のうち`SKILL.md`を含むフォルダを、`~/.claude/skills/<name>`としてリンクする。リンクにはディレクトリのシンボリックリンクを使い、Windowsがシンボリックリンクの作成を許可しないときはジャンクションを使う。`SKILL.md`が削除されると、ywatchyがリンクを削除する。起動時には、`~/.claude/skills`のリンクのうち、`scan_dirs`のフォルダの中を指し、見つかったどのskillのリンクでもないリンクを削除する
-- CLAUDE.md: `<project>/CLAUDE.md`を、無ければ`<project>/.claude/CLAUDE.md`を、`<store>/<project>/CLAUDE.md`にコピーする。元の`CLAUDE.md`とコピーのどちらを編集しても、もう一方を同じ内容に更新する。起動時に2つのコピーの内容が異なるときは、更新日時が新しいほうで古いほうを上書きする
+- skill: `<project>/skills/<name>/`と`<project>/.claude/skills/<name>/`のうち`SKILL.md`を含むフォルダを、`~/.claude/skills/<name>`としてリンクする。リンクにはディレクトリのシンボリックリンクを使い、Windowsがシンボリックリンクの作成を許可しないときはジャンクションを使う。`SKILL.md`が削除されると、ywatchyがリンクを削除する。起動時には、`~/.claude/skills`のリンクのうち、`scan_dirs`のフォルダの中を指していて、見つかったどのskillのリンクでもないリンクを削除する
+- CLAUDE.md: `<project>/CLAUDE.md`を、無ければ`<project>/.claude/CLAUDE.md`を、`<store>/<project>/CLAUDE.md`にコピーする。元の`CLAUDE.md`とコピーのどちらを編集しても、もう一方を同じ内容に更新する。起動時に元の`CLAUDE.md`とコピーの内容が異なるときは、更新日時が新しいほうで古いほうを上書きする
 
 オプション: `--config <path>`で別の設定ファイルを使う。`-V`・`--version`でバージョンを、`-h`・`--help`で使い方を表示する。
 
