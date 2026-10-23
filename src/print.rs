@@ -51,7 +51,6 @@ pub fn print_section(label: &str, count: usize, items: &[(String, Status)]) {
     print!("\u{250c}{}", header_text);
     println!("{}\u{2510}", "\u{2500}".repeat(header_pad));
 
-    // rows
     for (row, row_width) in rows.iter().zip(row_widths.iter()) {
         let padded_name = pad_right(&row.name, name_width);
         let content = if row.detail.is_empty() {

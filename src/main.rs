@@ -34,7 +34,7 @@ enum CliAction {
     Help,
 }
 
-/// 引数を解釈する。知らない引数はエラーにし、常駐を始めない
+/// Unknown arguments are errors, so a mistyped argument does not start the daemon.
 fn parse_args<I: IntoIterator<Item = String>>(args: I) -> Result<CliAction, String> {
     let mut config = None;
     let mut iter = args.into_iter();
