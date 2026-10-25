@@ -1,6 +1,6 @@
 # ywatchy
 
-[日本語](README.ja.md)
+[日本語版 README](README.ja.md)
 
 A Windows command-line tool that watches your project folders, links Claude Code skills, and syncs `CLAUDE.md` files.
 

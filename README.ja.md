@@ -1,6 +1,6 @@
 # ywatchy
 
-[English](README.md)
+[English README](README.md)
 
 プロジェクトのフォルダを監視し、Claude Codeのskillのリンクを作成して、`CLAUDE.md`を同期するWindowsのコマンドラインツール。
 
