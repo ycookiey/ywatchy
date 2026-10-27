@@ -2,6 +2,12 @@
 name = "ywatchy"
 version = "0.4.1"
 edition = "2021"
+description = "Watches project folders to link Claude Code skills into ~/.claude/skills and keep CLAUDE.md files in sync with a store folder"
+license = "MIT"
+repository = "https://github.com/ycookiey/ywatchy"
+readme = "README.md"
+keywords = ["claude-code", "skills", "symlink", "file-watcher", "sync"]
+categories = ["command-line-utilities", "filesystem"]
 
 [dependencies]
 notify = "8"

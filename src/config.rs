@@ -110,7 +110,6 @@ debounce_ms = 500
         Ok(())
     }
 
-    /// scan_dirs が未設定かどうか
     pub fn has_scan_dirs(&self) -> bool {
         !self.sync.scan_dirs.is_empty() || !self.skills.scan_dirs.is_empty()
     }
